@@ -29,12 +29,23 @@ extern "C" {
 const float FMOD_GRAIN_PARAM_GRAIN_MIN = -80.0f;
 const float FMOD_GRAIN_PARAM_GRAIN_MAX = 10.0f;
 const float FMOD_GRAIN_PARAM_GRAIN_DEFAULT = 0.0f;
+//--------------------------
+const float FMOD_GRAIN_PARAM_GRAIN_LENGTH_MIN = 20;
+const float FMOD_GRAIN_PARAM_GRAIN_LENGTH_MAX = 2000;
+const float FMOD_GRAIN_PARAM_GRAIN_LENGTH_DEFAULT = 200;
+//--------------------------
+const float FMOD_GRAIN_PARAM_GRAIN_DENSITY_MIN = 20;
+const float FMOD_GRAIN_PARAM_GRAIN_DENSITY_MAX = 1000;
+const float FMOD_GRAIN_PARAM_GRAIN_DENSITY_DEFAULT = 200;
+
 #define FMOD_GRAIN_RAMPCOUNT 256;
 
 
 enum
 {
-    FMOD_GRAIN_PARAM_GRAIN = 0,
+    //FMOD_GRAIN_PARAM_GRAIN = 0,
+    FMOD_GRAIN_PARAM_GRAIN_LENGTH = 0,
+    FMOD_GRAIN_PARAM_GRAIN_DENSITY,
     FMOD_GRAIN_NUM_PARAMETERS
 };
 
@@ -63,11 +74,15 @@ FMOD_RESULT F_CALL FMOD_Grain_sys_deregister(FMOD_DSP_STATE* dsp_state);
 FMOD_RESULT F_CALL FMOD_Grain_sys_mix(FMOD_DSP_STATE* dsp_state, int stage);
 
 static bool                    FMOD_Grain_Running = false;
-static FMOD_DSP_PARAMETER_DESC p_grain;
+//static FMOD_DSP_PARAMETER_DESC p_grain;
+static FMOD_DSP_PARAMETER_DESC p_grainLength;
+static FMOD_DSP_PARAMETER_DESC p_grainDensity;
 
 FMOD_DSP_PARAMETER_DESC* FMOD_Grain_dspparam[FMOD_GRAIN_NUM_PARAMETERS] =
 {
-    &p_grain
+    //&p_grain,
+    &p_grainLength,
+    &p_grainDensity
 };
 
 FMOD_DSP_DESCRIPTION FMOD_Grain_Desc =
@@ -116,7 +131,11 @@ extern "C"
         static float grain_mapping_values[] = { -80, -50, -30, -10, 10 };
         static float grain_mapping_scale[] = { 0, 2, 4, 7, 11 };
 
-        FMOD_DSP_INIT_PARAMDESC_FLOAT_WITH_MAPPING(p_grain, "Grain", "dB", "Grain in dB. -80 to 10. Default = 0", FMOD_GRAIN_PARAM_GRAIN_DEFAULT, grain_mapping_values, grain_mapping_scale);
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainLength, "grainlength", "length(ms)", "grain length in ms", FMOD_GRAIN_PARAM_GRAIN_LENGTH_MIN, FMOD_GRAIN_PARAM_GRAIN_LENGTH_MAX, FMOD_GRAIN_PARAM_GRAIN_LENGTH_DEFAULT);
+
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainDensity, "grainDensity", "density(ms)", "grain spawn trigger", FMOD_GRAIN_PARAM_GRAIN_DENSITY_MIN, FMOD_GRAIN_PARAM_GRAIN_DENSITY_MAX, FMOD_GRAIN_PARAM_GRAIN_DENSITY_DEFAULT);
+
+        //FMOD_DSP_INIT_PARAMDESC_FLOAT_WITH_MAPPING(p_grain, "Grain", "dB", "Grain in dB. -80 to 10. Default = 0", FMOD_GRAIN_PARAM_GRAIN_DEFAULT, grain_mapping_values, grain_mapping_scale);
         return &FMOD_Grain_Desc;
     }
 
@@ -129,15 +148,37 @@ public:
 
     void read(float* inbuffer, float* outbuffer, unsigned int length, int channels);
     void reset();
-    void setGrain(float);
-    float grain() const { return LINEAR_TO_DECIBELS(m_target_grain); }
+    //void setGrain(float);
+    //float grain() const { return LINEAR_TO_DECIBELS(m_target_grain); }
+
+    void setLength(float);
+    float tempGrainLength() const {
+        return m_target_length;
+    }
+
+    void setDensity(float);
+    float grainDensity() const {
+        return m_target_density;
+    }
+
     CircularBuffer<float> cbL, cbR;
+    Granulator <float> granulatorL, granulatorR;
  
 
 private:
     float m_target_grain;
     float m_current_grain;
     int   m_ramp_samples_left;
+
+    float m_target_length;
+    float m_current_length;
+
+    float m_target_density;
+    float m_current_density;
+    int densityL = 0;
+    int densityR = 0;
+    int maximum = 1000;
+    int grainLength = 500;
 };
 
 FMODGrainState::FMODGrainState()
@@ -148,12 +189,16 @@ FMODGrainState::FMODGrainState()
     cbL.createCircularBuffer(48000);
     cbR.createCircularBuffer(48000);
 
+    granulatorL.setBuffer(&cbL);
+    granulatorR.setBuffer(&cbR);
+
     reset();
 }
 
 void FMODGrainState::read(float* inbuffer, float* outbuffer, unsigned int length, int channels)
 {
     // Note: buffers are interleaved
+
 
     for (unsigned int i = 0; i < length; ++i) {
 
@@ -166,20 +211,49 @@ void FMODGrainState::read(float* inbuffer, float* outbuffer, unsigned int length
         //now write incoming samples into buffer
         
         
-        float delayL = cbL.readBuffer(sampleRate);
-        float delayR = cbR.readBuffer(sampleRate);
+        //float delayL = cbL.readBuffer(sampleRate);
+        //float delayR = cbR.readBuffer(sampleRate);
 
-        float echoL = inL + 0.75 * delayL;
-        float echoR = inR + 0.75 * delayR;
+        //float echoL = inL + 0.75 * delayL;
+        //float echoR = inR + 0.75 * delayR;
 
-        cbL.writeBuffer(echoL);
-        cbR.writeBuffer(echoR);
+        cbL.writeBuffer(inL);
+        cbR.writeBuffer(inR);
+
         
+        double myGrainLength = m_current_length;
 
-        double hann = 0.5 * (1.0 - cos(2.0 * PI * i / (length - 1)));
+        double myDensity = m_current_density;
 
-        outbuffer[i * channels] = echoL;
-        outbuffer[i * channels + 1] = echoR;
+
+
+
+
+        if (densityL <= 0) {
+            auto grainPosition = rand() % maximum;
+            granulatorL.startGrain(static_cast<double>(myGrainLength), static_cast<double>(grainPosition));
+            densityL = myDensity * 48;
+        }
+
+        if (densityR <= 0) {
+            auto grainPosition = rand() % maximum;
+            granulatorR.startGrain(static_cast<double>(myGrainLength), static_cast<double>(grainPosition));
+            densityR = myDensity * 48;
+        }
+
+        if (densityL > 0) {
+            densityL--;
+        }
+        if (densityR > 0) {
+            densityR--;
+        }
+
+        //now that granulator has inputs, process them
+        auto grainsL = granulatorL.processGrain();
+        auto grainsR = granulatorR.processGrain();
+
+        outbuffer[i * channels] = grainsL;
+        outbuffer[i * channels + 1] = grainsR;
     }
 }
 
@@ -190,12 +264,27 @@ void FMODGrainState::reset()
     cbR.flushBuffer();
 
     m_current_grain = m_target_grain;
+    m_current_length = m_target_length;
     m_ramp_samples_left = 0;
 }
+
+/*
 
 void FMODGrainState::setGrain(float grain)
 {
     m_target_grain = DECIBELS_TO_LINEAR(grain);
+    m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
+}
+*/
+
+void FMODGrainState::setLength(float length) {
+    m_current_length = length;
+    m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
+}
+
+
+void FMODGrainState::setDensity(float density) {
+    m_current_density = density;
     m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
 }
 
@@ -273,12 +362,20 @@ FMOD_RESULT F_CALL FMOD_Grain_dspsetparamfloat(FMOD_DSP_STATE* dsp_state, int in
 {
     FMODGrainState* state = (FMODGrainState*)dsp_state->plugindata;
 
+    
     switch (index)
     {
-    case FMOD_GRAIN_PARAM_GRAIN:
-        state->setGrain(value);
+    case FMOD_GRAIN_PARAM_GRAIN_LENGTH:
+        state->setLength(value);
         return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_DENSITY:
+        state->setDensity(value);
+        return FMOD_OK;
+
     }
+
+
+    
 
     return FMOD_ERR_INVALID_PARAM;
 }
@@ -287,13 +384,18 @@ FMOD_RESULT F_CALL FMOD_Grain_dspgetparamfloat(FMOD_DSP_STATE* dsp_state, int in
 {
     FMODGrainState* state = (FMODGrainState*)dsp_state->plugindata;
 
+    
     switch (index)
     {
-    case FMOD_GRAIN_PARAM_GRAIN:
-        *value = state->grain();
-        if (valuestr) snprintf(valuestr, FMOD_DSP_GETPARAM_VALUESTR_LENGTH, "%.1f dB", state->grain());
+    case FMOD_GRAIN_PARAM_GRAIN_LENGTH:
+        *value = state->tempGrainLength();
+        //if (valuestr) snprintf(valuestr, FMOD_DSP_GETPARAM_VALUESTR_LENGTH, "%.1f dB", state->tempGrainLength());
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_DENSITY:
+        *value = state->grainDensity();
         return FMOD_OK;
     }
+    
 
     return FMOD_ERR_INVALID_PARAM;
 }

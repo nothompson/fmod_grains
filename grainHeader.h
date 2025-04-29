@@ -1,5 +1,7 @@
 #pragma once
 #include <memory> 
+#include <vector>
+#include <utility>
 #include "fmod.hpp"
 
 //will pirkle audio effects
@@ -105,6 +107,10 @@ public:
 		return doLinearInterpolation(y1, y2, fraction);
 	}
 
+	unsigned int getWriteIndex() const {
+		return writeIndex;
+	}
+
 	/** enable or disable interpolation; usually used for diagnostics or in algorithms that require strict integer samples times */
 	void setInterpolate(bool b) { interpolate = b; }
 
@@ -116,3 +122,74 @@ private:
 	bool interpolate = true;			///< interpolation (default is ON)
 };
 
+template <typename T> 
+class Granulator
+{
+public: 
+	Granulator() {}		//constructor
+	~Granulator() {} //destructor
+
+	//pointer to circular buffer that we are getting input from
+	void setBuffer(CircularBuffer<T>* buffer) {
+		circularBuffer = buffer;
+	}
+
+	void startGrain(double lengthinms, double start) {
+		//conversion from ms to samples
+		//divide ms by 1000, then multiply by samplerate
+		double delay = (start / 1000.0) * 48000.0;
+		double lengthinsamps = (lengthinms / 1000.0) * 48000.0;
+
+		activeGrain.readPos = circularBuffer->getWriteIndex() + static_cast<int>(delay);
+		activeGrain.lengthSamples = static_cast<int>(lengthinsamps);
+		//initalize with zero
+		activeGrain.index = 0;
+		activeGrain.active = true;
+	}
+
+	T processGrain() {
+		//return zeros if not active
+		if (!activeGrain.active) {
+			return T(0);
+		}
+		//when index has completed length, stop 
+		if (activeGrain.index >= activeGrain.lengthSamples) {
+			activeGrain.active = false;
+			return T(0);
+		}
+			auto readPos = activeGrain.readPos;
+			T outGrain = circularBuffer->readBuffer(readPos);
+
+			//hann window
+			double hann = 0.5 * (1.0 - cos(2.0 * PI * activeGrain.index / (activeGrain.lengthSamples - 1)));
+
+			outGrain *= hann;
+
+			activeGrain.index++;
+
+			return outGrain;
+	}
+
+	bool isActive() const {
+		return activeGrain.active;
+	}
+
+
+
+private:
+	CircularBuffer<T>* circularBuffer = nullptr;
+	unsigned int maxBufferSize = 1024;
+	double PI = 3.141592653589793;
+
+	struct Grain {
+		double readPos = 0.0;
+		int lengthSamples = 0;
+		int index = 0;
+		bool active = false;
+	};
+
+	Grain activeGrain;
+
+	//std::vector<Grain> grainList;
+
+};
