@@ -13,4 +13,4 @@ C:\Users\*yourname*\fmod\fmodSetup\FMODStudioAPIWindows
 C:\Users\*yourname*\fmod\fmodSetup\FMODStudioAPIWindows\api\core\examples\vs2019
 Here there are many other visual studio files for custom fmod dsps.
 5. Among the visual studio files in the folder are the main cpp file **"fmod_grains.cpp"** and **"grain_header.h",** these need to be moved to a specfic path for fmod to compile and build the plugin to a dll.
-6. Move the fmod_grains.cpp to C:\Users\*yourname*\fmod\fmodSetup\**FMODStudioAPIWindows\api\core\examples\plugins**
+6. Move the fmod_grains.cpp to C:\Users\*yourname*\fmod\fmodSetup\**FMODStudioAPIWindows\api\core\examples\plugins*
