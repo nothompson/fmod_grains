@@ -15,6 +15,7 @@ This example shows how to create a simple gain DSP effect.
 
 #include "grainHeader.h"
 
+//fmod has fixed samplerate of 48khz
 const int sampleRate = 48000;
 const double PI = 3.141592653589793;
 
@@ -37,6 +38,18 @@ const float FMOD_GRAIN_PARAM_GRAIN_LENGTH_DEFAULT = 200;
 const float FMOD_GRAIN_PARAM_GRAIN_DENSITY_MIN = 20;
 const float FMOD_GRAIN_PARAM_GRAIN_DENSITY_MAX = 1000;
 const float FMOD_GRAIN_PARAM_GRAIN_DENSITY_DEFAULT = 200;
+//--------------------------
+const float FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_MIN = 0.25;
+const float FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_MAX = 4.0;
+const float FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_DEFAULT = 1.0;
+//--------------------------
+const float FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MIN = 0.0;
+const float FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MAX = 1.0;
+const float FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_DEFAULT = 0.0;
+//--------------------------
+const float FMOD_GRAIN_PARAM_GRAIN_COUNT_MIN = 1.0;
+const float FMOD_GRAIN_PARAM_GRAIN_COUNT_MAX = 16.0;
+const float FMOD_GRAIN_PARAM_GRAIN_COUNT_DEFAULT = 4.0;
 
 #define FMOD_GRAIN_RAMPCOUNT 256;
 
@@ -46,6 +59,9 @@ enum
     //FMOD_GRAIN_PARAM_GRAIN = 0,
     FMOD_GRAIN_PARAM_GRAIN_LENGTH = 0,
     FMOD_GRAIN_PARAM_GRAIN_DENSITY,
+    FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE,
+    FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD,
+    FMOD_GRAIN_PARAM_GRAIN_COUNT,
     FMOD_GRAIN_NUM_PARAMETERS
 };
 
@@ -77,12 +93,18 @@ static bool                    FMOD_Grain_Running = false;
 //static FMOD_DSP_PARAMETER_DESC p_grain;
 static FMOD_DSP_PARAMETER_DESC p_grainLength;
 static FMOD_DSP_PARAMETER_DESC p_grainDensity;
+static FMOD_DSP_PARAMETER_DESC p_playback_rate;
+static FMOD_DSP_PARAMETER_DESC p_playback_spread;
+static FMOD_DSP_PARAMETER_DESC p_grainCount;
 
 FMOD_DSP_PARAMETER_DESC* FMOD_Grain_dspparam[FMOD_GRAIN_NUM_PARAMETERS] =
 {
     //&p_grain,
     &p_grainLength,
-    &p_grainDensity
+    &p_grainDensity,
+    &p_playback_rate,
+    &p_playback_spread,
+    &p_grainCount
 };
 
 FMOD_DSP_DESCRIPTION FMOD_Grain_Desc =
@@ -131,9 +153,18 @@ extern "C"
         static float grain_mapping_values[] = { -80, -50, -30, -10, 10 };
         static float grain_mapping_scale[] = { 0, 2, 4, 7, 11 };
 
-        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainLength, "grainlength", "length(ms)", "grain length in ms", FMOD_GRAIN_PARAM_GRAIN_LENGTH_MIN, FMOD_GRAIN_PARAM_GRAIN_LENGTH_MAX, FMOD_GRAIN_PARAM_GRAIN_LENGTH_DEFAULT);
+        //int params are weird, need some kind of const char array for each integer value, not very helpful for grain count
+        //just use float and floor the value when sent into dsp
 
-        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainDensity, "grainDensity", "density(ms)", "grain spawn trigger", FMOD_GRAIN_PARAM_GRAIN_DENSITY_MIN, FMOD_GRAIN_PARAM_GRAIN_DENSITY_MAX, FMOD_GRAIN_PARAM_GRAIN_DENSITY_DEFAULT);
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainLength, "length", "ms", "grain length in ms", FMOD_GRAIN_PARAM_GRAIN_LENGTH_MIN, FMOD_GRAIN_PARAM_GRAIN_LENGTH_MAX, FMOD_GRAIN_PARAM_GRAIN_LENGTH_DEFAULT);
+
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainDensity, "trigger", "ms", "grain spawn trigger", FMOD_GRAIN_PARAM_GRAIN_DENSITY_MIN, FMOD_GRAIN_PARAM_GRAIN_DENSITY_MAX, FMOD_GRAIN_PARAM_GRAIN_DENSITY_DEFAULT);
+
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_playback_rate, "rate", " ", "playback rate", FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_MIN, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_MAX, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_DEFAULT);
+
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_playback_spread, "rate spread", " ", "playback rate randomization", FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_DEFAULT);
+
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainCount, "max grains", "grains", "max grain count", FMOD_GRAIN_PARAM_GRAIN_COUNT_MIN, FMOD_GRAIN_PARAM_GRAIN_COUNT_MAX, FMOD_GRAIN_PARAM_GRAIN_COUNT_DEFAULT);
 
         //FMOD_DSP_INIT_PARAMDESC_FLOAT_WITH_MAPPING(p_grain, "Grain", "dB", "Grain in dB. -80 to 10. Default = 0", FMOD_GRAIN_PARAM_GRAIN_DEFAULT, grain_mapping_values, grain_mapping_scale);
         return &FMOD_Grain_Desc;
@@ -161,8 +192,30 @@ public:
         return m_target_density;
     }
 
+    void setPlaybackRate(float);
+    float grainPlaybackRate() const {
+        return m_target_playback;
+    }
+
+    //allows for changing rate per grain, but random values with high density makes it very steppy and weird.
+    void setRateSpread(float);
+    float rateSpread() const {
+        return m_target_playback_spread;
+    }
+
+    void setGrainCount(float);
+    float grainCount() const {
+        return m_target_count;
+    }
+
     CircularBuffer<float> cbL, cbR;
-    Granulator <float> granulatorL, granulatorR;
+    //Granulator <float> granulatorL, granulatorR;
+
+    //dynamic array for left and right channels. differing positions for each channel adds stereo delay/depth
+    std::vector<Granulator<float>> granulatorL, granulatorR;
+
+
+
  
 
 private:
@@ -177,20 +230,44 @@ private:
     float m_current_density;
     int densityL = 0;
     int densityR = 0;
+
+    float m_target_playback;
+    float m_current_playback;
+
+    float m_target_playback_spread;
+    float m_current_playback_spread;
+
+    float m_target_count;
+    float m_current_count;
+
+    //ms, max circular buffer length
     int maximum = 1000;
     int grainLength = 500;
+
+    double spread;
 };
 
 FMODGrainState::FMODGrainState()
 {
-    m_target_grain = DECIBELS_TO_LINEAR(FMOD_GRAIN_PARAM_GRAIN_DEFAULT);
+    //m_target_grain = DECIBELS_TO_LINEAR(FMOD_GRAIN_PARAM_GRAIN_DEFAULT);
 
     //initialize buffer with size of 1 second
     cbL.createCircularBuffer(48000);
     cbR.createCircularBuffer(48000);
 
-    granulatorL.setBuffer(&cbL);
-    granulatorR.setBuffer(&cbR);
+    //initialize max grain limit
+    granulatorL.resize(1);
+
+    granulatorR.resize(1);
+
+    //for each grain in granulator array, reference circular buffers 
+    for (auto& grain : granulatorL) {
+        grain.setBuffer(&cbL);
+    }
+    for (auto& grain : granulatorR) {
+        grain.setBuffer(&cbR);
+    }
+
 
     reset();
 }
@@ -201,7 +278,6 @@ void FMODGrainState::read(float* inbuffer, float* outbuffer, unsigned int length
 
 
     for (unsigned int i = 0; i < length; ++i) {
-
         //buffers interleaved, meaning even indices are left and odd are right
         //access by multiplying by two 
         float inL = inbuffer[i * channels];
@@ -209,38 +285,52 @@ void FMODGrainState::read(float* inbuffer, float* outbuffer, unsigned int length
         float inR = inbuffer[i * channels + 1];
 
         //now write incoming samples into buffer
-        
-        
-        //float delayL = cbL.readBuffer(sampleRate);
-        //float delayR = cbR.readBuffer(sampleRate);
-
-        //float echoL = inL + 0.75 * delayL;
-        //float echoR = inR + 0.75 * delayR;
-
         cbL.writeBuffer(inL);
         cbR.writeBuffer(inR);
-
         
+        //parameter assignment
         double myGrainLength = m_current_length;
 
         double myDensity = m_current_density;
 
-
-
-
-
+        //trigger logic, once timer hits 0 we trigger a grain
         if (densityL <= 0) {
-            auto grainPosition = rand() % maximum;
-            granulatorL.startGrain(static_cast<double>(myGrainLength), static_cast<double>(grainPosition));
-            densityL = myDensity * 48;
+
+            //for each grain in array, assign a random position and random playback spread (if applied)
+            for (int i = 0; i < granulatorL.size(); i++) {
+
+                //random number wrapped to maximum. with a buffer size of 1 second, we get random numbers between 0 and 999
+                auto grainPosition = rand() % maximum;
+
+                //0.5 to 4.0 
+                spread = 0.5 + (rand() / (double)RAND_MAX) * (3.5);
+
+                //intialize with parameters 
+                granulatorL[i].startGrain(static_cast<double>(myGrainLength), static_cast<double>(grainPosition));
+            }
+                //density goes from 20 to 1000 ms, we then multiply by 48 to get samples. 1000*48 = 48000 which is 1 second at the sample rate
+                densityL = myDensity * 48;
         }
 
+        
         if (densityR <= 0) {
-            auto grainPosition = rand() % maximum;
-            granulatorR.startGrain(static_cast<double>(myGrainLength), static_cast<double>(grainPosition));
+
+            for (int i = 0; i < granulatorR.size(); i++) {
+
+                //random number wrapped to maximum. with a buffer size of 1 second, we get random numbers between 0 and 999
+                auto grainPosition = rand() % maximum;
+
+                spread = 0.5 + (rand() / (double)RAND_MAX) * (3.5);
+
+
+                //intialize with parameters 
+                granulatorR[i].startGrain(static_cast<double>(myGrainLength), static_cast<double>(grainPosition));
+            }
+            //density goes from 20 to 1000 ms, we then multiply by 48 to get samples. 1000*48 = 48000 which is 1 second at the sample rate
             densityR = myDensity * 48;
         }
 
+        //after density is set to target rate, decrement to 0 
         if (densityL > 0) {
             densityL--;
         }
@@ -248,9 +338,20 @@ void FMODGrainState::read(float* inbuffer, float* outbuffer, unsigned int length
             densityR--;
         }
 
-        //now that granulator has inputs, process them
-        auto grainsL = granulatorL.processGrain();
-        auto grainsR = granulatorR.processGrain();
+        //grains are initialized, process and read from their position 
+        auto grainsL = 0.0f;
+        //for each grain, process and set playbackrate 
+        for (auto& grain : granulatorL) {
+            double playbackrate = m_current_playback + (spread * m_current_playback_spread);
+            //all the grain voices are added up 
+            //TO DO: fix this scaling, some kind of diminishing returns would work better, at 16 voices it is a bit quieter than 1-4
+            grainsL += (grain.processGrain(playbackrate)) / granulatorL.size();
+        }
+        auto grainsR = 0.0f;
+        for (auto& grain : granulatorR) {
+            double playbackrate = m_current_playback + (spread * m_current_playback_spread);
+            grainsR += (grain.processGrain(playbackrate)) / granulatorR.size();
+        }
 
         outbuffer[i * channels] = grainsL;
         outbuffer[i * channels + 1] = grainsR;
@@ -282,11 +383,42 @@ void FMODGrainState::setLength(float length) {
     m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
 }
 
-
 void FMODGrainState::setDensity(float density) {
     m_current_density = density;
     m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
 }
+
+void FMODGrainState::setPlaybackRate(float rate) {
+    m_current_playback = rate;
+    m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
+}
+
+void FMODGrainState::setRateSpread(float spread) {
+    m_current_playback_spread = spread;
+    m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
+}
+
+void FMODGrainState::setGrainCount(float count) {
+    m_current_count = count;
+    m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
+
+    auto grainMax = floor(m_current_count);
+
+    //resize dynamic vector on change in grain count param
+
+    granulatorL.resize(grainMax);
+
+    granulatorR.resize(grainMax);
+
+    //each grain needs to reference circular buffers for input
+    for (auto& grain : granulatorL) {
+        grain.setBuffer(&cbL);
+    }
+    for (auto& grain : granulatorR) {
+        grain.setBuffer(&cbR);
+    }
+}
+
 
 FMOD_RESULT F_CALL FMOD_Grain_dspcreate(FMOD_DSP_STATE* dsp_state)
 {
@@ -371,6 +503,15 @@ FMOD_RESULT F_CALL FMOD_Grain_dspsetparamfloat(FMOD_DSP_STATE* dsp_state, int in
     case FMOD_GRAIN_PARAM_GRAIN_DENSITY:
         state->setDensity(value);
         return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE:
+        state->setPlaybackRate(value);
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD:
+        state->setRateSpread(value);
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_COUNT:
+        state->setGrainCount(value);
+        return FMOD_OK;
 
     }
 
@@ -393,6 +534,15 @@ FMOD_RESULT F_CALL FMOD_Grain_dspgetparamfloat(FMOD_DSP_STATE* dsp_state, int in
         return FMOD_OK;
     case FMOD_GRAIN_PARAM_GRAIN_DENSITY:
         *value = state->grainDensity();
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE:
+        *value = state->grainPlaybackRate();
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD:
+        *value = state->rateSpread();
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_COUNT:
+        *value = state->grainCount();
         return FMOD_OK;
     }
     

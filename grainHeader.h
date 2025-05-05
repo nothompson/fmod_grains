@@ -135,61 +135,113 @@ public:
 	}
 
 	void startGrain(double lengthinms, double start) {
+
 		//conversion from ms to samples
 		//divide ms by 1000, then multiply by samplerate
-		double delay = (start / 1000.0) * 48000.0;
 		double lengthinsamps = (lengthinms / 1000.0) * 48000.0;
+		double delayinsamps = (start / 1000.0) * 48000.0;
 
-		activeGrain.readPos = circularBuffer->getWriteIndex() + static_cast<int>(delay);
-		activeGrain.lengthSamples = static_cast<int>(lengthinsamps);
+		//this might be messing with random positioning. 
+		//static_cast<double>(circularBuffer->getWriteIndex() -
+
+		//each grain in grain list needs these parameters initialized
+		Grain grain;
+		grain.readPos = delayinsamps;
+		grain.lengthSamples = static_cast<int>(lengthinsamps);
 		//initalize with zero
-		activeGrain.index = 0;
-		activeGrain.active = true;
+		grain.index = 0;
+		//flag active voice
+		grain.active = true;
+
+		//add to grainList 
+		grainList.push_back(grain);
 	}
 
-	T processGrain() {
+	T processGrain(double playback) {
 		//return zeros if not active
+
+		/*
 		if (!activeGrain.active) {
 			return T(0);
 		}
+		*/
+
+		/*
 		//when index has completed length, stop 
 		if (activeGrain.index >= activeGrain.lengthSamples) {
-			activeGrain.active = false;
+			//activeGrain.active = false;
 			return T(0);
 		}
-			auto readPos = activeGrain.readPos;
+		*/
+
+		T mixdown = T(0);
+
+		for (auto& grain : grainList){
+
+			//if index is out of length bounds, then make inactive and stop processing it 
+			if (grain.index >= grain.lengthSamples) {
+				grain.active = false;
+				continue;
+			}
+
+			//if inactive, skip the processing for it 
+			if (!grain.active)continue;
+		
+
+			//iterating through position by playbackrate speed (idk why but + 1.0 to make it work right)
+			auto readPos = grain.readPos + grain.index * (playback + 1.0);
+			//read from specified position
 			T outGrain = circularBuffer->readBuffer(readPos);
 
 			//hann window
-			double hann = 0.5 * (1.0 - cos(2.0 * PI * activeGrain.index / (activeGrain.lengthSamples - 1)));
+			double hann = 0.5 * (1.0 - cos(2.0 * PI * grain.index / (grain.lengthSamples - 1)));
 
+			//envelope
 			outGrain *= hann;
 
-			activeGrain.index++;
+			//iterate through length
+			grain.index++;
 
-			return outGrain;
+			//sum of many grains in mix
+			mixdown += outGrain;
+		}
+
+		//if inactive flag, move to end of array and erase
+		grainList.erase(
+			std::remove_if(grainList.begin(), grainList.end(),
+				[](const Grain& g) { return !g.active; }),
+			grainList.end()
+		);
+
+		return mixdown;
+
 	}
 
+	//flag for active voice
 	bool isActive() const {
-		return activeGrain.active;
+		for(auto& grain: grainList){
+			if(grain.active) return true;
+		}
+		return false;
 	}
 
 
 
 private:
+	//inherit buffer pointer from cb
 	CircularBuffer<T>* circularBuffer = nullptr;
-	unsigned int maxBufferSize = 1024;
+	//helpful const for window
 	double PI = 3.141592653589793;
 
+	//each grain has these parameters
 	struct Grain {
 		double readPos = 0.0;
 		int lengthSamples = 0;
-		int index = 0;
+		double index = 0.0;
 		bool active = false;
 	};
 
-	Grain activeGrain;
-
-	//std::vector<Grain> grainList;
+	//dynamic array of grains, polyphonic
+	std::vector<Grain> grainList;
 
 };
