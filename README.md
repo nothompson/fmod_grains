@@ -2,7 +2,7 @@
 
 Open source C++ custom dsp for FMOD. Integrate granularity in your sounds and background music based on parameters from game engines like Unity or Unreal. Polyphonic grains with a maximum of 16 grains per trigger. Density, length, and playbackrate/pitch parameters, easily modulated or automated in FMOD Studio.
 
-![alt text](https://imgur.com/N133GlU)
+![alt text](https://i.imgur.com/N133GlU.png)
 
 ## Download Guide
 1. Download FMOD Studio [here](https://www.fmod.com/ "FMOD Homepage")
