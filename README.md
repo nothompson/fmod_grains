@@ -2,4 +2,6 @@
 
 Open source C++ custom dsp for FMOD. Integrate granularity in your sounds and background music based on parameters from game engines like Unity or Unreal.
 
-##Donwload 
+## Download Guide
+
+
