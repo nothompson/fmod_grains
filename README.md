@@ -5,8 +5,8 @@ Open source C++ custom dsp for FMOD. Integrate granularity in your sounds and ba
 ![alt text](https://i.imgur.com/N133GlU.png)
 
 ## Download Guide
-1. Download FMOD Studio [here](https://www.fmod.com/ "FMOD Homepage")
-2. Download FMOD Core API [here](https://www.fmod.com/core "FMOD Core")
+1. Go to the [FMOD website](https://www.fmod.com/ "FMOD Homepage") and sign in/sign up
+2. Download FMOD Studio and FMOD Engine [here](https://www.fmod.com/download "download page")
 3. Become familiar with each of their file paths. For example, mine looks like this:
 C:\Program Files\FMOD SoundSystem\FMOD Studio 2.03.07
 and
