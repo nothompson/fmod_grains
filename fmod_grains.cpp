@@ -55,9 +55,9 @@ const int FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MIN = 0;
 const int FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MAX = 2;
 const int FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_DEFAULT = 0;
 //--------------------------
-const float FMOD_GRAIN_PARAM_GRAIN_COUNT_MIN = 1.0;
-const float FMOD_GRAIN_PARAM_GRAIN_COUNT_MAX = 16.0;
-const float FMOD_GRAIN_PARAM_GRAIN_COUNT_DEFAULT = 4.0;
+const int FMOD_GRAIN_PARAM_GRAIN_COUNT_MIN = 1;
+const int FMOD_GRAIN_PARAM_GRAIN_COUNT_MAX = 16;
+const int FMOD_GRAIN_PARAM_GRAIN_COUNT_DEFAULT = 4;
 
 #define FMOD_GRAIN_RAMPCOUNT 256;
 
@@ -99,7 +99,7 @@ FMOD_RESULT F_CALL FMOD_Grain_sys_register(FMOD_DSP_STATE* dsp_state);
 FMOD_RESULT F_CALL FMOD_Grain_sys_deregister(FMOD_DSP_STATE* dsp_state);
 FMOD_RESULT F_CALL FMOD_Grain_sys_mix(FMOD_DSP_STATE* dsp_state, int stage);
 
-const char* spreadToggle[3] = { "off", "on", "test"};
+const char* spreadToggle[3] = { "off", "melodic", "textural"};
 
 static bool                    FMOD_Grain_Running = false;
 //static FMOD_DSP_PARAMETER_DESC p_grain;
@@ -126,7 +126,7 @@ FMOD_DSP_PARAMETER_DESC* FMOD_Grain_dspparam[FMOD_GRAIN_NUM_PARAMETERS] =
 FMOD_DSP_DESCRIPTION FMOD_Grain_Desc =
 {
     FMOD_PLUGIN_SDK_VERSION,
-    "myGrains",    // name
+    "NTGrains",    // name
     0x00010000,     // plug-in version
     1,              // number of input buffers to process
     1,              // number of output buffers to process
@@ -147,12 +147,12 @@ FMOD_DSP_DESCRIPTION FMOD_Grain_Desc =
     FMOD_GRAIN_NUM_PARAMETERS,
     FMOD_Grain_dspparam,
     FMOD_Grain_dspsetparamfloat,
-    0, // FMOD_Gain_dspsetparamint,
-    FMOD_Grain_dspsetparambool,
+    FMOD_Grain_dspsetparamint,
+    0, //FMOD_Grain_dspsetparambool,
     0, // FMOD_Gain_dspsetparamdata,
     FMOD_Grain_dspgetparamfloat,
-    0, // FMOD_Gain_dspgetparamint,
-    FMOD_Grain_dspgetparambool,
+    FMOD_Grain_dspgetparamint,
+    0, //FMOD_Grain_dspgetparambool,
     0, // FMOD_Gain_dspgetparamdata,
     FMOD_Grain_shouldiprocess,
     0,                                      // userdata
@@ -163,32 +163,27 @@ FMOD_DSP_DESCRIPTION FMOD_Grain_Desc =
 
 extern "C"
 {
-
     F_EXPORT FMOD_DSP_DESCRIPTION* F_CALL FMODGetDSPDescription()
     {
-
         //int params are weird, need some kind of const char array for each integer value, not very helpful for grain count
         //just use float and floor the value when sent into dsp
 
         FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainLength, "length", "ms", "grain length in ms", FMOD_GRAIN_PARAM_GRAIN_LENGTH_MIN, FMOD_GRAIN_PARAM_GRAIN_LENGTH_MAX, FMOD_GRAIN_PARAM_GRAIN_LENGTH_DEFAULT);
 
-        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainLengthSpread, "length spread", " ", "grain length randomization", FMOD_GRAIN_PARAM_GRAIN_LENGTH_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_LENGTH_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_LENGTH_SPREAD_DEFAULT);
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainLengthSpread, "lengthSpread", " ", "grain length randomization", FMOD_GRAIN_PARAM_GRAIN_LENGTH_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_LENGTH_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_LENGTH_SPREAD_DEFAULT);
 
         FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainDensity, "trigger", "ms", "grain spawn trigger", FMOD_GRAIN_PARAM_GRAIN_DENSITY_MIN, FMOD_GRAIN_PARAM_GRAIN_DENSITY_MAX, FMOD_GRAIN_PARAM_GRAIN_DENSITY_DEFAULT);
 
-        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainDensitySpread, "trigger spread", " ", "grain trigger randomization", FMOD_GRAIN_PARAM_GRAIN_DENSITY_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_DENSITY_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_DENSITY_SPREAD_DEFAULT);
+        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainDensitySpread, "triggerSpread", " ", "grain trigger randomization", FMOD_GRAIN_PARAM_GRAIN_DENSITY_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_DENSITY_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_DENSITY_SPREAD_DEFAULT);
 
         FMOD_DSP_INIT_PARAMDESC_FLOAT(p_playback_rate, "rate", " ", "playback rate", FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_MIN, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_MAX, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE_DEFAULT);
 
-        //FMOD_DSP_INIT_PARAMDESC_FLOAT(p_playback_spread, "rate spread", " ", "playback rate randomization", FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_DEFAULT);
+        FMOD_DSP_INIT_PARAMDESC_INT(p_playback_spread, "rateSpread", "", "playback rate randomization", FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_DEFAULT, true, spreadToggle);
 
-        FMOD_DSP_INIT_PARAMDESC_INT(p_playback_spread, "rate spread", "", "playback rate randomization", FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MIN, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_MAX, FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD_DEFAULT, true, spreadToggle);
-
-        FMOD_DSP_INIT_PARAMDESC_FLOAT(p_grainCount, "max grains", "grains", "max grain count", FMOD_GRAIN_PARAM_GRAIN_COUNT_MIN, FMOD_GRAIN_PARAM_GRAIN_COUNT_MAX, FMOD_GRAIN_PARAM_GRAIN_COUNT_DEFAULT);
+        FMOD_DSP_INIT_PARAMDESC_INT(p_grainCount, "maxGrains", " ", "max grain count", FMOD_GRAIN_PARAM_GRAIN_COUNT_MIN, FMOD_GRAIN_PARAM_GRAIN_COUNT_MAX, FMOD_GRAIN_PARAM_GRAIN_COUNT_DEFAULT, false, NULL);
 
         return &FMOD_Grain_Desc;
     }
-
 }
 
 class FMODGrainState
@@ -228,8 +223,8 @@ public:
         return m_target_playback_spread;
     }
 
-    void setGrainCount(float);
-    float grainCount() const {
+    void setGrainCount(int);
+    int grainCount() const {
         return m_target_count;
     }
 
@@ -334,19 +329,20 @@ void FMODGrainState::read(float* inbuffer, float* outbuffer, unsigned int length
     }
 }
 
-
 void FMODGrainState::reset()
 {
     //fill buffers with 0s
     cbL.flushBuffer(); 
     cbR.flushBuffer();
 
+    /*
     m_current_length = m_target_length;
     m_current_length_spread = m_target_length_spread;
     m_current_density = m_target_density;
     m_current_density_spread = m_target_density_spread;
     m_current_playback = m_target_playback;
     m_current_playback_spread = m_target_playback_spread;
+    */
     m_ramp_samples_left = 0;
     //currentsamp = 0.0;
 }
@@ -366,13 +362,22 @@ void FMODGrainState::startGrain(std::vector<Granulator<float>>& granulatorChanne
             auto myGrainLength = m_current_length + (randspread * lengthspread);
 
             //0.5 to 4.0 
-            //auto spread = 0.5 + (rand() / (double)RAND_MAX) * (3.5);
+            auto texturalSpread = 0.5 + (rand() / (double)RAND_MAX) * (3.5);
+
             const double spreadTable[] = { static_cast<double>(m_current_playback) * -0.5, 0.0, static_cast<double>(m_current_playback), static_cast<double>(m_current_playback) * 3.0 };
             auto spreadIndex = rand() % 4;
 
-            auto spread = spreadTable[spreadIndex];
+            auto melodicSpread = spreadTable[spreadIndex];
 
-            double playbackrate = m_current_playback + (spread * static_cast<double>(m_current_playback_spread));
+            double playbackrate = 0.0;
+
+            if (m_current_playback_spread <= 1) {
+                playbackrate = m_current_playback + (melodicSpread * static_cast<double>(m_current_playback_spread));
+            }
+
+            if (m_current_playback_spread >= 2) {
+                playbackrate = m_current_playback * (texturalSpread);
+            }
 
             auto densityspread = (rand() / (double)RAND_MAX * m_current_density) - (m_current_density * 0.5);
 
@@ -428,7 +433,7 @@ void FMODGrainState::setRateSpread(int spread) {
     m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
 }
 
-void FMODGrainState::setGrainCount(float count) {
+void FMODGrainState::setGrainCount(int count) {
     m_current_count = count;
     m_ramp_samples_left = FMOD_GRAIN_RAMPCOUNT;
 
@@ -542,10 +547,6 @@ FMOD_RESULT F_CALL FMOD_Grain_dspsetparamfloat(FMOD_DSP_STATE* dsp_state, int in
     case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_RATE:
         state->setPlaybackRate(value);
         return FMOD_OK;
-    case FMOD_GRAIN_PARAM_GRAIN_COUNT:
-        state->setGrainCount(value);
-        return FMOD_OK;
-
     }
 
 
@@ -587,7 +588,7 @@ FMOD_RESULT F_CALL FMOD_Grain_dspgetparamfloat(FMOD_DSP_STATE* dsp_state, int in
     return FMOD_ERR_INVALID_PARAM;
 }
 
-FMOD_RESULT F_CALL FMOD_Noise_dspsetparamint(FMOD_DSP_STATE* dsp_state, int index, int value)
+FMOD_RESULT F_CALL FMOD_Grain_dspsetparamint(FMOD_DSP_STATE* dsp_state, int index, int value)
 {
     FMODGrainState* state = (FMODGrainState*)dsp_state->plugindata;
 
@@ -596,12 +597,15 @@ FMOD_RESULT F_CALL FMOD_Noise_dspsetparamint(FMOD_DSP_STATE* dsp_state, int inde
     case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD:
         state->setRateSpread(value);
         return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_COUNT:
+        state->setGrainCount(value);
+        return FMOD_OK;
     }
 
     return FMOD_ERR_INVALID_PARAM;
 }
 
-FMOD_RESULT F_CALL FMOD_Noise_dspgetparamint(FMOD_DSP_STATE* dsp_state, int index, int* value, char* valuestr)
+FMOD_RESULT F_CALL FMOD_Grain_dspgetparamint(FMOD_DSP_STATE* dsp_state, int index, int* value, char* valuestr)
 {
     FMODGrainState* state = (FMODGrainState*)dsp_state->plugindata;
 
@@ -609,6 +613,9 @@ FMOD_RESULT F_CALL FMOD_Noise_dspgetparamint(FMOD_DSP_STATE* dsp_state, int inde
     {
     case FMOD_GRAIN_PARAM_GRAIN_PLAYBACK_SPREAD:
         *value = state->rateSpread();
+        return FMOD_OK;
+    case FMOD_GRAIN_PARAM_GRAIN_COUNT:
+        *value = state->grainCount();
         return FMOD_OK;
     }
 
