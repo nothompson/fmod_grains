@@ -1,8 +1,8 @@
 # NTGrains : Live Granular Plugin for FMOD Studio  (2.03)
 
-Open source C++ custom dsp for FMOD. Integrate granularity in your sounds and background music based on parameters from game engines like Unity or Unreal. Polyphonic grains with a maximum of 16 grains. Per grain density, length, and playbackrate/pitch parameters, easily modulated or automated in FMOD Studio.
+Open source C++ custom dsp for FMOD. Integrate granularity in your sounds and background music based on parameters from game engines like Unity or Unreal. Polyphonic grains with a maximum of 16 grains and a buffer freeze. Per grain density, length, and playbackrate/pitch parameters, easily modulated or automated in FMOD Studio.
 
-![alt text](https://i.imgur.com/HDpo4pA.png)
+![alt text](https://i.imgur.com/kOl4Kpf.png)
 
 ## Download Guide
 1. Go to the [FMOD website](https://www.fmod.com/ "FMOD Homepage") and sign in/sign up
