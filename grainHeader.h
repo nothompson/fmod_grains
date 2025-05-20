@@ -153,7 +153,7 @@ private:
 			trigger -= 1.0;
 		}
 
-		void startGrain(double lengthinms, double start, double currentsamp, double offset, double playback) {
+		void startGrain(double lengthinms, double start, double currentsamp, double offset, double playback, bool freezeinput) {
 
 			//conversion from ms to samples
 			//divide ms by 1000, then multiply by samplerate
@@ -174,6 +174,7 @@ private:
 			grain.index = 0;
 			//flag active voice
 			grain.active = true;
+			grain.freeze = freezeinput;
 
 			//add to grainList 
 			grainList.push_back(grain);
@@ -197,21 +198,18 @@ private:
 				//if inactive, skip the processing for it 
 				if (!grain.active)continue;
 		
-
-				//iterating through position by playbackrate speed (idk why but + 1.0 to make it work right)
-				auto readPos = grain.readPos + grain.index * (grain.playback + 1.0);
+				//iterating through position by playbackrate speed
+				// if freeze is off, we need to add 1 to playback rate for it work right (i have no idea why, but it works lololol)
+				//doubleNot to ensure grain.freeze is set to 1 or 0 
+				auto readPos = grain.readPos + grain.index * (grain.playback + (1.0 - !!grain.freeze));
 				//read from specified position
 				T outGrain = circularBuffer->readBuffer(readPos);
-
 				//hann window
 				double hann = 0.5 * (1.0 - cos(2.0 * PI * grain.index / (grain.lengthSamples - 1)));
-
 				//envelope
 				outGrain *= hann;
-
 				//iterate through length
 				grain.index++;
-
 				//sum of many grains in mix
 				mixdown += outGrain;
 			}
@@ -256,6 +254,7 @@ private:
 			double trig = 0.0;
 			double index = 0.0;
 			bool active = false;
+			bool freeze = false;
 		};
 
 		//dynamic array of grains, polyphonic
