@@ -26,6 +26,6 @@ Here there are many other visual studio files for custom fmod dsps.
 
 ## Unity Integration Guide
 1. To ensure you can use this plugin inside of a unity project, you need to ensure the dll file is placed in the project
-2. Follow this [FMOD tutorial]("https://www.fmod.com/docs/2.00/unity/integration-tutorial.html") if you're just getting started
+2. Follow this [FMOD tutorial]("https://www.fmod.com/docs/2.00/unity/integration-tutorial.html") if you're just getting started 
 3. Otherwise you can just navigate to the project folders in Unity at the bottom and go to Assets/Plugins/FMOD/platforms/win/lib/x86_64, and copy and paste the plugin dll from C:\Program Files\FMOD SoundSystem\FMOD Studio 2.03.07\plugins.
 4. Once thats done you should be all set to start automating granular effects from game parameters! 
